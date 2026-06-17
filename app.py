@@ -108,7 +108,7 @@ def normalize_driver(driver_str):
 
 # ── Sidebar ──────────────────────────────────────────────────────────────
 st.sidebar.header("Upload Files")
-trips_file = st.sidebar.file_uploader("TRIPS.csv", type="csv", key="trips")
+trips_file = st.sidebar.file_uploader("Amazon Relay History", type="csv", key="trips")
 payment_files = st.sidebar.file_uploader("Payment Details (Excel or CSV)", 
                                           type=["xlsx", "xls", "csv"],
                                           accept_multiple_files=True, key="payment")
