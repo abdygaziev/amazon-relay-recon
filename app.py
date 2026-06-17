@@ -329,4 +329,4 @@ if trips_file and payment_files:
         st.info("No data to export.")
 
 else:
-    st.info("👈 Upload TRIPS.csv and Payment Details file")
+    st.info("👈 Upload Amazon Relay History and Payment Details files")
