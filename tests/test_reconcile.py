@@ -81,6 +81,17 @@ class ReconcileTests(unittest.TestCase):
         self.assertEqual(result.completed_df["Driver Display"].tolist(), ["A Driver", "B Driver", "D Driver"])
         self.assertEqual(result.completed_df["Reconciliation Status"].tolist(), ["Paid", "Next Week", "Missing"])
 
+    def test_nan_status_is_rejected(self):
+        trips = self.trips()
+        trips.loc[0, "Status"] = pd.NA
+        payments = pd.DataFrame([{"Load ID": "OTHER"}])
+
+        result = reconcile(trips, payments, date(2026, 5, 23))
+
+        rejected = result.cancelled_df[result.cancelled_df["Normalized Load ID"] == "1001"]
+        self.assertEqual(rejected["Status Display"].tolist(), ["Rejected"])
+        self.assertNotIn("1001", result.missing_df["Normalized Load ID"].tolist())
+
     def test_payment_total_deduplicates_same_load_and_amount(self):
         trips = self.trips().iloc[:1]
         payments = pd.DataFrame(

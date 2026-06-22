@@ -122,6 +122,15 @@ def normalize_driver(driver: object) -> str:
     return ";".join(sorted(unique_names))
 
 
+def normalize_status(status: object) -> str:
+    if pd.isna(status):
+        return "Rejected"
+    value = str(status).strip()
+    if not value or value.lower() == "nan":
+        return "Rejected"
+    return value
+
+
 def validate_inputs(
     trips_df: pd.DataFrame,
     payment_df: pd.DataFrame,
@@ -156,7 +165,7 @@ def validate_inputs(
 
 
 def _status_bucket(status: object) -> str:
-    value = "" if pd.isna(status) else str(status).strip().lower()
+    value = normalize_status(status).lower()
     if any(token in value for token in ["cancel", "rejected", "not started"]):
         return "cancelled"
     if "complete" in value:
@@ -250,7 +259,7 @@ def _add_display_columns(
 
     output["Driver Display"] = output[driver_col].map(normalize_driver) if driver_col else ""
     output["Route Display"] = output[route_col].fillna("").astype(str).str.strip() if route_col else ""
-    output["Status Display"] = output[status_col].fillna("").astype(str).str.strip()
+    output["Status Display"] = output[status_col].map(normalize_status)
     output["Completion Datetime"] = output["Normalized Load ID"].map(completion_by_load)
     return output
 
