@@ -39,6 +39,8 @@ streamlit run app.py
 Required columns: `Load ID`, `Trip ID`, `Driver Name`, `Load Execution Status`, `Stop 2 Actual Arrival Date`, `Stop 2 Actual Arrival Time`
 
 ### Payment Details
+Supported formats: `.csv`, `.xlsx`, `.xls`
+
 Required columns: `Load ID` or `Trip ID`, `Gross Pay`
 
 ## Deployment
@@ -58,7 +60,8 @@ fly deploy
 
 - **Streamlit** - UI framework
 - **Pandas** - Data processing
-- **OpenPyXL** - Excel file support
+- **OpenPyXL** - `.xlsx` Excel file support
+- **xlrd** - legacy `.xls` Excel file support
 
 ## License
 

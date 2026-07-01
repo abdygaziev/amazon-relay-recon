@@ -3,7 +3,7 @@ import unittest
 
 import pandas as pd
 
-from reconcile import ValidationError, normalize_id, reconcile
+from reconcile import ValidationError, normalize_id, payment_week_date, reconcile
 
 
 class ReconcileTests(unittest.TestCase):
@@ -106,6 +106,60 @@ class ReconcileTests(unittest.TestCase):
         self.assertEqual(result.total_paid, 500.0)
         self.assertIn("Duplicate payment rows", result.warnings[0])
 
+    def test_payment_total_keeps_distinct_repeated_charges(self):
+        trips = self.trips().iloc[:1]
+        payments = pd.DataFrame(
+            [
+                {
+                    "LoadID": "1001",
+                    "GrossPay": "$25.00",
+                    "Item Type": "ACCESSORIAL",
+                    "Description": "Detention stop 1",
+                },
+                {
+                    "LoadID": "1001",
+                    "GrossPay": "$25.00",
+                    "Item Type": "ACCESSORIAL",
+                    "Description": "Detention stop 2",
+                },
+            ]
+        )
+
+        result = reconcile(trips, payments, date(2026, 5, 23))
+
+        self.assertEqual(result.total_paid, 50.0)
+        self.assertEqual(result.warnings, [])
+
+    def test_payment_total_deduplicates_exact_duplicate_but_keeps_distinct_charge(self):
+        trips = self.trips().iloc[:1]
+        payments = pd.DataFrame(
+            [
+                {
+                    "LoadID": "1001",
+                    "GrossPay": "$25.00",
+                    "Item Type": "ACCESSORIAL",
+                    "Description": "Detention stop 1",
+                },
+                {
+                    "LoadID": "1001",
+                    "GrossPay": "$25.00",
+                    "Item Type": "ACCESSORIAL",
+                    "Description": "Detention stop 1",
+                },
+                {
+                    "LoadID": "1001",
+                    "GrossPay": "$25.00",
+                    "Item Type": "ACCESSORIAL",
+                    "Description": "Detention stop 2",
+                },
+            ]
+        )
+
+        result = reconcile(trips, payments, date(2026, 5, 23))
+
+        self.assertEqual(result.total_paid, 50.0)
+        self.assertIn("Duplicate payment rows", result.warnings[0])
+
     def test_payment_total_uses_blank_id_invoice_summary_when_it_matches_details(self):
         trips = self.trips().iloc[:1]
         payments = pd.DataFrame(
@@ -145,6 +199,41 @@ class ReconcileTests(unittest.TestCase):
 
         self.assertEqual(len(result.missing_df), 0)
         self.assertEqual(result.next_week_df["Normalized Load ID"].tolist(), ["L1", "L2"])
+
+    def test_payment_week_date_uses_pacific_daylight_time(self):
+        completion = pd.Timestamp("2026-07-05 00:30")
+
+        self.assertEqual(payment_week_date(completion, -7), date(2026, 7, 5))
+
+    def test_sunday_pacific_daylight_completion_rolls_to_next_week(self):
+        trips = pd.DataFrame(
+            [
+                {
+                    "Load ID": "L1",
+                    "Trip ID": "T1",
+                    "Status": "Completed",
+                    "Stop 2 Actual Arrival Date": "07/05/2026",
+                    "Stop 2 Actual Arrival Time": "00:30",
+                    "Stop 2 UTC Offset": "-7",
+                },
+            ]
+        )
+        payments = pd.DataFrame([{"Load ID": "OTHER"}])
+
+        result = reconcile(trips, payments, date(2026, 7, 4))
+
+        self.assertEqual(len(result.missing_df), 0)
+        self.assertEqual(result.next_week_df["Normalized Load ID"].tolist(), ["L1"])
+
+    def test_payment_week_date_preserves_no_offset_behavior(self):
+        completion = pd.Timestamp("2026-07-05 00:30")
+
+        self.assertEqual(payment_week_date(completion), date(2026, 7, 5))
+
+    def test_payment_week_date_converts_non_pacific_stop_to_pacific_date(self):
+        completion = pd.Timestamp("2026-07-05 01:30")
+
+        self.assertEqual(payment_week_date(completion, -4), date(2026, 7, 4))
 
     def test_missing_required_trip_columns_raise_validation_error(self):
         trips = pd.DataFrame([{"Load ID": "1001", "Status": "Completed"}])
