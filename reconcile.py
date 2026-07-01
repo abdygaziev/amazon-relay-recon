@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, timedelta, timezone
 from typing import Iterable
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:  # pragma: no cover - only used on Python < 3.9
+    from backports.zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -83,6 +88,15 @@ def safe_float(value: object) -> float:
         return float(text)
     except ValueError:
         return 0.0
+
+
+def normalize_payment_cell(value: object) -> str:
+    if pd.isna(value):
+        return ""
+    text = str(value).strip()
+    if text.endswith(".0"):
+        text = text[:-2]
+    return text
 
 
 def parse_completion_datetime(date_value: object, time_value: object = "") -> pd.Timestamp | None:
@@ -193,8 +207,14 @@ def payment_week_date(completion: pd.Timestamp | None, utc_offset: object = None
     if offset is None:
         return completion.date()
 
-    pacific_offset = -8
-    pacific_completion = completion + timedelta(hours=pacific_offset - offset)
+    source_timezone = timezone(timedelta(hours=offset))
+    completion_datetime = completion.to_pydatetime()
+    if completion_datetime.tzinfo is None:
+        completion_datetime = completion_datetime.replace(tzinfo=source_timezone)
+    else:
+        completion_datetime = completion_datetime.astimezone(source_timezone)
+
+    pacific_completion = completion_datetime.astimezone(ZoneInfo("America/Los_Angeles"))
     return pacific_completion.date()
 
 
@@ -305,13 +325,12 @@ def calculate_total_paid(payment_df: pd.DataFrame, payment_columns: dict[str, st
             return float(matching_summary["_gross_numeric"].iloc[-1]), warnings
 
     if not keyed.empty:
-        dedupe_columns = ["_trip_key", "_load_key", "_gross_numeric"]
-        item_col = find_column(["Item Type", "ItemType"], payment_df.columns)
-        if item_col:
-            keyed["_item_type"] = keyed[item_col].fillna("").astype(str).str.strip()
-            dedupe_columns.append("_item_type")
-
-        deduped = keyed.drop_duplicates(subset=dedupe_columns)
+        source_columns = list(payment_df.columns)
+        keyed["_row_key"] = keyed.apply(
+            lambda row: tuple(normalize_payment_cell(row[column]) for column in source_columns),
+            axis=1,
+        )
+        deduped = keyed.drop_duplicates(subset=["_row_key"])
         if len(deduped) < len(keyed):
             warnings.append("Duplicate payment rows were detected and deduplicated for total paid.")
         return float(deduped["_gross_numeric"].sum()), warnings

@@ -97,12 +97,14 @@ def infer_week_start(payment_df: pd.DataFrame) -> date:
 def read_payment_file(uploaded_file) -> pd.DataFrame:
     name = uploaded_file.name.lower()
     if name.endswith((".xlsx", ".xls")):
-        xl = pd.ExcelFile(uploaded_file)
+        engine = "xlrd" if name.endswith(".xls") else "openpyxl"
+        xl = pd.ExcelFile(uploaded_file, engine=engine)
         sheet_name = "Payment Details" if "Payment Details" in xl.sheet_names else None
         if sheet_name is None:
             detail_sheets = [sheet for sheet in xl.sheet_names if "detail" in sheet.lower()]
             sheet_name = detail_sheets[0] if detail_sheets else xl.sheet_names[0]
-        return pd.read_excel(uploaded_file, sheet_name=sheet_name)
+        uploaded_file.seek(0)
+        return pd.read_excel(uploaded_file, sheet_name=sheet_name, engine=engine)
     return pd.read_csv(uploaded_file)
 
 
